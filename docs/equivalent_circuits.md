@@ -1,11 +1,11 @@
 # **Equivalent Circuit Models for EIS**  
-*Electrochemical Impedance Spectroscopy Data Analysis Platform — Stage 4 Documentation*
+*Electrochemical Impedance Spectroscopy Data Analysis Platform*
 
 ---
 
 ## **1. Purpose of This Document**
 
-This page introduces the electrical models used to interpret impedance data in Stage 4 of the project.  
+This page introduces the electrical models used to interpret impedance data.  
 It explains:
 
 - The physical meaning of each circuit element  
@@ -13,12 +13,6 @@ It explains:
 - How these models relate to Nyquist and Bode plots  
 - How they are implemented in `src/models/equivalent_circuits.py`  
 - How they are used in `06_circuit_fitting.ipynb`  
-
-This stage corresponds to the roadmap section:
-
-> “Move from data visualisation to physical and electrical interpretation using equivalent circuit models.”  
-
-
 ---
 
 ## **2. Why Equivalent Circuits?**
@@ -199,7 +193,7 @@ Z_model = evaluate_model(model, frequencies)
 - Semicircle → RC behavior  
 - Diameter → charge transfer resistance  
 - High‑frequency intercept → solution resistance  
-- Low‑frequency tail → diffusion (not included in Stage 4)
+- Low‑frequency tail → diffusion
 
 ### **Bode Magnitude**
 - Capacitive systems show decreasing $|Z|$ with frequency  
@@ -213,13 +207,10 @@ Z_model = evaluate_model(model, frequencies)
 ---
 
 ## **8. Summary**
-
-Stage 4 transforms the platform from a visualisation tool into a **scientific modelling engine**:
-
 - You now simulate physical behavior  
 - Compare theory vs data  
 - Interpret electrochemical phenomena  
-- Prepare for Stage 5 (parameter fitting)
+- Prepare for parameter fitting
 
 From the roadmap:
 
