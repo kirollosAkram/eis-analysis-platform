@@ -19,8 +19,8 @@ $$
 
 where:
 
-- $ Z' $: real (resistive) part  
-- $ Z'' $: imaginary (reactive) part  
+- $Z'$: real (resistive) part  
+- $Z''$: imaginary (reactive) part  
 
 ---
 
