@@ -124,7 +124,7 @@ eis-analysis-platform/
 ## 🚀 Installation
 
 ```bash
-git clone https://github.com/yourusername/eis-analysis-platform.git
+git clone https://github.com/kirollosAkram/eis-analysis-platform.git
 cd eis-analysis-platform
 python -m venv venv
 source venv/bin/activate   # Linux/Mac
