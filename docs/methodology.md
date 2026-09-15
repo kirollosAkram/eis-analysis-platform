@@ -17,7 +17,7 @@ The platform provides:
 - Equivalent‑circuit modelling and parameter fitting
 - A reproducible notebook‑based workflow
 
-The methodology ensures that each stage builds on the previous one, forming a coherent pipeline from fundamentals → simulation → visualisation → fitting → interpretation.
+This methodology ensures that each stage of the project is built upon the previous one., forming a coherent pipeline from fundamentals → simulation → visualisation → fitting → interpretation.
 
 ---
 
@@ -158,7 +158,7 @@ The project ensures reproducibility through:
 
 ---
 
-## 8. Final Stage: Streamlit Application
+## 8. Streamlit Application
 
 An optional Streamlit UI allows:
 
