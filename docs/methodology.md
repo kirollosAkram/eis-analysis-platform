@@ -29,28 +29,35 @@ The project follows a modular structure:
 eis-analysis-platform/
 │
 ├── data/
-│   ├── raw/         # Unprocessed measurement files
-│   ├── processed/   # Cleaned and validated datasets
-│   └── simulated/   # Synthetic impedance datasets
+│   ├── raw/
+│   ├── processed/
+│   └── simulated/
 │
 ├── docs/
 │   ├── methodology.md
 │   ├── eis_fundamentals.md
 │   └── equivalent_circuits.md
 │
-├── src/
-│   ├── simulation/      # resistor.py, capacitor.py, rc_circuit.py
-│   ├── preprocessing/   # load_raw_csv(), validation
-│   ├── visualisation/   # nyquist.py, bode.py
-│   └── fitting/         # least-squares, RMSE, chi-square
+├── notebooks/
+│   ├── 01_eis_fundamentals.ipynb
+│   ├── 02_resistor_simulation.ipynb
+│   ├── 03_capacitor_simulation.ipynb
+│   ├── 04_rc_simulation.ipynb
+│   ├── 05_visualisation.ipynb
+│   └── 06_circuit_fitting.ipynb
 │
-└── notebooks/
-├── 01_eis_fundamentals.ipynb
-├── 02_resistor_simulation.ipynb
-├── 03_capacitor_simulation.ipynb
-├── 04_rc_simulation.ipynb
-├── 05_visualisation.ipynb
-└── 06_circuit_fitting.ipynb
+├── src/
+│   ├── simulation/
+│   ├── preprocessing/
+│   ├── visualisation/
+│   ├── models/
+│   └── analysis/
+│
+├── app/
+│   └── streamlit_app.py
+│
+├── results/
+│   ├── figures/
 
 ```
 ---
