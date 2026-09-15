@@ -38,10 +38,10 @@ $$
 
 Key quantities:
 
-- **Frequency:** $ f $ (Hz)  
-- **Angular frequency:** $ \omega = 2\pi f $  
-- **Period:** $ T = 1/f $  
-- **Phase shift:** $ \phi $
+- **Frequency:** $f$ (Hz)  
+- **Angular frequency:** $\omega = 2\pi f$  
+- **Period:** $T = 1/f$  
+- **Phase shift:** $\phi$
 
 ---
 
