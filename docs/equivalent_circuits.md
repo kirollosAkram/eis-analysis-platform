@@ -22,7 +22,7 @@ Equivalent circuits allow us to **map physical electrochemical phenomena** to **
 
 From the roadmap:
 
-> “Understand how physical and electrochemical phenomena can be approximated using electrical components such as Rs, Rct and Cdl.”  
+> “Understand how physical and electrochemical phenomena can be approximated using electrical components such as $R_s$, $R_{ct}$ and $C_{dl}$.”  
 
 
 These models help interpret:
