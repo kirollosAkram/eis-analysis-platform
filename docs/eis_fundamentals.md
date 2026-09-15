@@ -184,6 +184,3 @@ These concepts form the mathematical backbone of:
 - Equivalent circuit modelling  
 - Parameter fitting  
 - Interpretation of electrochemical behaviour
-
-They are the foundation of Stage 2 and all subsequent stages of the project.
-
