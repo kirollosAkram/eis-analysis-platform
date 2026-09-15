@@ -40,9 +40,7 @@ All component models are implemented in `src/models/equivalent_circuits.py`.
 
 ### **3.1 Resistor (R)**  
 Impedance:  
-$$
-Z_R = R
-$$
+$$Z_R = R$$
 
 From the fundamentals notebook:
 
