@@ -61,19 +61,13 @@ eis-analysis-platform/
 Synthetic datasets are generated using analytical impedance expressions:
 
 - **Resistor:**  
-  $$ 
-  Z_R = R
-  $$
+  $$Z_R = R$$
 
 - **Capacitor:**  
-  $$ 
-  Z_C = \frac{1}{j \omega C}
-  $$
+  $$Z_C = \frac{1}{j \omega C}$$
 
 - **Series RC:**  
-  $$ 
-  Z_{RC} = R + \frac{1}{j \omega C}
-  $$
+  $$Z_{RC} = R + \frac{1}{j \omega C}$$
 
 These datasets allow controlled experiments before working with real measurements.
 
@@ -104,13 +98,13 @@ Preprocessing includes:
 Two canonical EIS plots are used:
 
 ### Nyquist Plot  
-- X-axis: $ \Re(Z) $  
-- Y-axis: $ -\Im(Z) $  
+- X-axis: $\Re(Z)$  
+- Y-axis: $-\Im(Z)$  
 - Shows geometric features (semicircles, straight lines)
 
 ### Bode Plot  
-- Magnitude: $ |Z| $ vs frequency  
-- Phase: $ \varphi $ vs frequency  
+- Magnitude: $|Z|$ vs frequency  
+- Phase: $\varphi$ vs frequency  
 - Highlights frequency-dependent behaviour
 
 Visualisation modules ensure consistent styling and reproducibility.
