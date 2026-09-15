@@ -60,9 +60,7 @@ def Z_resistor(R):
 
 ### **3.2 Capacitor (C)**  
 Impedance:  
-$$
-Z_C = \frac{1}{j\omega C}
-$$
+$$Z_C = \frac{1}{j\omega C}$$
 
 From the fundamentals notebook:
 
@@ -85,9 +83,7 @@ def Z_capacitor(C):
 
 ### **4.1 Series RC Circuit**  
 Impedance:  
-$$
-Z_{RC} = R + \frac{1}{j\omega C}
-$$
+$$Z_{RC} = R + \frac{1}{j\omega C}$$
 
 This produces a **semicircle** in the Nyquist plot.  
 The real part is constant (R), while the imaginary part decreases with frequency.
@@ -107,9 +103,7 @@ def Z_rc_series(R, C):
 
 ### **4.2 Parallel RC Circuit**  
 Impedance:  
-$$
-Z_{RC} = \frac{1}{\frac{1}{R} + j\omega C}
-$$
+$$Z_{RC} = \frac{1}{\frac{1}{R} + j\omega C}$$
 
 This model is often used to represent **charge transfer resistance in parallel with double‑layer capacitance**.
 
@@ -135,9 +129,7 @@ The Randles circuit is the most common electrochemical model:
 - $C_{dl}$: double‑layer capacitance  
 
 Impedance:  
-$$
-Z = R_s + \frac{1}{\frac{1}{R_{ct}} + j\omega C_{dl}}
-$$
+$$Z = R_s + \frac{1}{\frac{1}{R_{ct}} + j\omega C_{dl}}$$
 
 From the roadmap:
 
