@@ -93,8 +93,8 @@ $$
 
 where:
 
-- $ R $: resistive part  
-- $ X $: reactive part  
+- $R$: resistive part  
+- $X$: reactive part  
 
 Impedance depends on frequency, unlike DC resistance.
 
@@ -126,7 +126,7 @@ $$
 
 - Purely imaginary  
 - Magnitude decreases with frequency  
-- Current leads voltage by $ 90^\circ $
+- Current leads voltage by $90^\circ$
 
 ---
 
@@ -167,7 +167,7 @@ This circuit produces the characteristic semicircle in Nyquist plots.
 ## 7. Nyquist and Bode Plots
 
 ### Nyquist  
-Plots $ -\Im(Z) $ vs $ \Re(Z) $.  
+Plots $-\Im(Z)$ vs $\Re(Z)$.  
 Shows geometric features (semicircles, straight lines).
 
 ### Bode  
