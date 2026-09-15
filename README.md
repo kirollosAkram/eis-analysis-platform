@@ -9,9 +9,9 @@ Designed for education, research, and instrumentation prototyping.
 
 ### 1. Impedance Simulation
 Generate controlled synthetic datasets:
-- Ideal resistor ($R$)
-- Ideal capacitor ($C$)
-- Series RC circuit ($R + 1/(jωC)$)
+- Ideal resistor $(R)$
+- Ideal capacitor $(C)$
+- Series RC circuit $(R + 1/(jωC))$
 
 Modules:  
 `src/simulation/resistor.py`, `src/simulation/capacitor.py`, `src/simulation/rc_circuit.py`
