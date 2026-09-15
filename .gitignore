@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+
+# Data
+data/raw/*
+data/processed/*
+data/simulated/*
+
+# Results
+results/figures/*
+
+# Logs
+*.log
