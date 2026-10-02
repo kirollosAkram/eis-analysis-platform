@@ -14,7 +14,7 @@ src_path = project_root / "src"
 sys.path.insert(0, str(src_path))
 
 from processing.preprocessing import preprocess_impedance
-from models.equivalent_circuits import Z_resistor, Z_capacitor, Z_rc_series
+from models.equivalent_circuits import Z_resistor, Z_capacitor, Z_rc_series, Z_randles
 from analysis.fitting import fit_model
 from analysis.metrics import rmse_complex, chi_square
 
@@ -40,7 +40,7 @@ uploaded_file = st.sidebar.file_uploader(
 
 model_name = st.sidebar.selectbox(
     "Equivalent circuit model",
-    ["Resistor (R)", "Capacitor (C)", "Series RC (R + 1/(jωC))"],
+    ["Resistor (R)", "Capacitor (C)", "Series RC (R + 1/(jωC))","Randle (Rs + Rct‖Cdl)"],
 )
 
 # Initial parameter guesses
@@ -56,11 +56,18 @@ elif model_name == "Capacitor (C)":
     initial_params = [C_guess]
     model_func = Z_capacitor(C_guess)
 
-else:
+elif model_name == "Series RC (R + 1/(jωC))":
     R_guess = st.sidebar.number_input("R (Ω)", value=100.0, min_value=0.0)
     C_guess = st.sidebar.number_input("C (F)", value=1e-6, min_value=0.0, format="%.2e")
     initial_params = [R_guess, C_guess]
     model_func = Z_rc_series(R_guess, C_guess)
+    
+else:
+    RS_guess = st.sidebar.number_input("$R_S (Ω)$", value=10.0, min_value=0.0)
+    Rct_guess = st.sidebar.number_input("$R_{ct} (Ω)$", value=100.0, min_value=0.0)    
+    Cdl_guess = st.sidebar.number_input("$C_{dl} (F)$", value=1e-6, min_value=0.0, format="%.2e")
+    initial_params = [RS_guess, Rct_guess, Cdl_guess]
+    model_func = Z_randles(RS_guess, Rct_guess, Cdl_guess)
 
 fit_button = st.sidebar.button("Run fit")
 
@@ -98,9 +105,9 @@ if uploaded_file is not None:
         # Any rescaling for display purposes goes into a separate Z_plot.
         Z_plot = Z_data
 
-        is_c_or_rc = model_name in ["Capacitor (C)", "Series RC (R + 1/(jωC))"]
+        is_img_axis = model_name in ["Capacitor (C)", "Series RC (R + 1/(jωC))", "Randle (Rs + Rct‖Cdl)"]
 
-        if is_c_or_rc:
+        if is_img_axis:
             scale_factor = st.selectbox(
                 "Imaginary axis scaling (divides -Z'' for readability)",
                 [1, 10, 100, 1000, 10000, 100000],
