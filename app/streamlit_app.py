@@ -17,6 +17,8 @@ from processing.preprocessing import preprocess_impedance
 from models.equivalent_circuits import Z_resistor, Z_capacitor, Z_rc_series, Z_randles
 from analysis.fitting import fit_model
 from analysis.metrics import rmse_complex, chi_square
+from analysis.interpretation import interpret_randles, cell_constant_parallel_plate
+from analysis.features import extract_features 
 
 # ---------------------------------------------------------
 # Streamlit page config
@@ -40,7 +42,7 @@ uploaded_file = st.sidebar.file_uploader(
 
 model_name = st.sidebar.selectbox(
     "Equivalent circuit model",
-    ["Resistor (R)", "Capacitor (C)", "Series RC (R + 1/(jωC))","Randle (Rs + Rct‖Cdl)"],
+    ["Resistor (R)", "Capacitor (C)", "Series RC (R + 1/(jωC))","Randles (Rs + Rct‖Cdl)"],
 )
 
 # Initial parameter guesses
@@ -68,6 +70,38 @@ else:
     Cdl_guess = st.sidebar.number_input("$C_{dl} (F)$", value=1e-6, min_value=0.0, format="%.2e")
     initial_params = [RS_guess, Rct_guess, Cdl_guess]
     model_func = Z_randles(RS_guess, Rct_guess, Cdl_guess)
+
+# ---------------------------------------------------------
+# Sidebar: inputs for the electrochemical interpretation
+# (only meaningful for the Randles model: Rs, Rct, Cdl)
+# A value of 0 means "not provided" -> that quantity is skipped, never guessed.
+# ---------------------------------------------------------
+if model_name.startswith("Randles"):
+    st.sidebar.markdown("### Electrochemical interpretation")
+
+    electrode_area_cm2 = st.sidebar.number_input(
+        "Electrode area $(cm²)$", value=0.0, min_value=0.0, format="%.4g",
+        help="True electroactive area. 0 = not provided.",
+    )
+    temperature_C = st.sidebar.number_input(
+        "Temperature $(°C)$", value=25.0, min_value=-50.0, max_value=150.0,
+    )
+    n_electrons = st.sidebar.number_input(
+        "Number of electrons $n$", value=0, min_value=0, step=1,
+        help="Electrons transferred in the redox reaction. 0 = not provided.",
+    )
+
+    use_geometry = st.sidebar.checkbox("Cell geometry known (for conductivity)")
+    cell_length_cm = 0.0
+    cell_area_cm2 = 0.0
+    if use_geometry:
+        cell_length_cm = st.sidebar.number_input(
+            "Electrode spacing $L (cm)$", value=0.0, min_value=0.0, format="%.4g"
+        )
+        cell_area_cm2 = st.sidebar.number_input(
+            "Electrolyte cross-section $(cm²)$", value=0.0, min_value=0.0, format="%.4g",
+            help="Cross-section of the electrolyte between the electrodes.",
+        )
 
 fit_button = st.sidebar.button("Run fit")
 
@@ -105,7 +139,7 @@ if uploaded_file is not None:
         # Any rescaling for display purposes goes into a separate Z_plot.
         Z_plot = Z_data
 
-        is_img_axis = model_name in ["Capacitor (C)", "Series RC (R + 1/(jωC))", "Randle (Rs + Rct‖Cdl)"]
+        is_img_axis = model_name in ["Capacitor (C)", "Series RC (R + 1/(jωC))", "Randles (Rs + Rct‖Cdl)"]
 
         if is_img_axis:
             scale_factor = st.selectbox(
@@ -159,6 +193,45 @@ if uploaded_file is not None:
       st.error("Fitting failed: your data contains NaN or infinite values. "
              "This usually happens due to smoothing or missing values in the CSV.")
       st.stop()
+    
+    # ---------------------------------------------------------
+    # Model-free features (no fit): read directly from the data
+    # ---------------------------------------------------------
+    st.subheader("Model-free features (from the data, no fit)")
+
+    # Use UNSMOOTHED data here: smoothing + dropna() removes the outermost
+    # frequency points, and the intercepts depend exactly on those points.
+    df_feat = preprocess_impedance(df_raw, smooth=False)
+    f_feat = df_feat["frequency"].to_numpy(dtype=float)
+    Z_feat = (df_feat["real"].to_numpy(dtype=float)
+              + 1j * df_feat["imag"].to_numpy(dtype=float))
+
+    try:
+        feat = extract_features(f_feat, Z_feat)
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("$R_{high}$", f"{feat.R_high:.4g} Ω")
+        c2.metric("$R_{low}$", f"{feat.R_low:.4g} Ω")
+        c3.metric("$R_{low} - R_{high}$", f"{feat.R_diff:.4g} Ω")
+        c4.metric("$f_{apex}$", f"{feat.f_apex:.4g} Hz")
+
+        st.caption(
+            "Measured: real-axis values at both ends and the frequency of the "
+            "maximum of $−Z''$. If the system behaves like a Randles circuit, "
+            "$R_{high}$ ≈ $R_s$, $R_{low} - R_{high}$ ≈ $R_{ct}$, and $$f_{apex} = 1/(2π·R_{ct}·C_{dl})$$."
+        )
+
+        # Tell the user when a feature should not be trusted
+        if not feat.R_high_reliable:
+            st.warning("High-frequency end does not reach the real axis: $R_high$ is only an upper bound for $R_s$.")
+        if not feat.R_low_reliable:
+            st.warning("No low-frequency plateau on the real axis: $R_low$ is not an $R_s + R_ct$ estimate.")
+        if not feat.apex_resolved:
+            st.warning("The maximum of $−Z''$ is at the edge of the measured range: $f_apex$ is not resolved.")
+
+    except ValueError as e:
+        # e.g. a pure resistor has Z'' = 0 everywhere, so there is nothing to extract
+        st.info(f"Features not available for this dataset: {e}")
 
     # ---------------------------------------------------------
     # Session state for fit results
@@ -202,13 +275,63 @@ if uploaded_file is not None:
         st.subheader("Fitting results")
 
         for i, p in enumerate(popt):
-            st.write(f"p{i+1} = {p:.4g}")
+            st.write(f"$p_{i+1} = {p:.4g}$")
 
         rmse_val = rmse_complex(Z_data, Z_fit)
         chi2_val = chi_square(Z_data, Z_fit)
 
         st.markdown(f"- **RMSE (complex):** `{rmse_val:.4g} Ω`")
         st.markdown(f"- **χ² (σ=1):** `{chi2_val:.4g}`")
+
+        # -----------------------------------------------------
+        # Electrochemical interpretation (Randles model only)
+        # -----------------------------------------------------
+        # len(popt) == 3 guards against a stale fit from another model.
+        if model_name.startswith("Randles") and len(popt) == 3:
+            st.subheader("Electrochemical interpretation")
+            st.caption(
+                "Fitted electrical parameters are converted into electrochemical "
+                "quantities. Each result is only as valid as its listed assumptions."
+            )
+
+            Rs_fit, Rct_fit, Cdl_fit = popt
+
+            # Convert the "0 = not provided" inputs into None
+            cell_constant = None
+            if use_geometry and cell_length_cm > 0 and cell_area_cm2 > 0:
+                cell_constant = cell_constant_parallel_plate(cell_length_cm, cell_area_cm2)
+
+            try:
+                results = interpret_randles(
+                    Rs_fit, Rct_fit, Cdl_fit,
+                    area_cm2=electrode_area_cm2 or None,
+                    n=int(n_electrons) or None,
+                    T_kelvin=temperature_C + 273.15,
+                    cell_constant_per_cm=cell_constant,
+                )
+            except ValueError as e:
+                st.error(f"Interpretation failed: {e}")
+                results = []
+
+            for r in results:
+                st.metric(r.name, f"{r.value:.4g} {r.unit}")
+                with st.expander(f"Formula and assumptions: {r.name}"):
+                    st.markdown(f"**Formula:** `{r.formula}`")
+                    st.markdown("**Assumptions**")
+                    for a in r.assumptions:
+                        st.markdown(f"- {a}")
+                    if r.notes:
+                        st.markdown("**Notes**")
+                        for note in r.notes:
+                            st.markdown(f"- {note}")
+
+            # Tell the user what is missing instead of silently hiding it
+            if not electrode_area_cm2:
+                st.info("Enter the electrode area to get $C_{dl}/A$ and $j_0$.")
+            elif not n_electrons:
+                st.info("Enter the number of electrons $n$ to get $j_0$.")
+            if use_geometry and cell_constant is None:
+                st.info("Enter both the spacing L and the cross-section to get conductivity.")
 
         # Nyquist comparison
         st.subheader("Nyquist: data vs fitted model")
