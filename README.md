@@ -198,6 +198,7 @@ eis-analysis-platform/
 │   ├── models/               # equivalent_circuits.py
 │   ├── processing/           # preprocessing.py
 │   ├── visualization/        # nyquist.py, bode.py
+│   ├── export/               # eis_report.py, latex_text.py, report_docx.py, report_export.py
 │   └── analysis/             # fitting, features, interpretation, metrics
 ├── results/
 │   ├── figures/
