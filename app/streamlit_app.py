@@ -17,8 +17,17 @@ from processing.preprocessing import preprocess_impedance
 from models.equivalent_circuits import Z_resistor, Z_capacitor, Z_rc_series, Z_randles
 from analysis.fitting import fit_model
 from analysis.metrics import rmse_complex, chi_square
-from analysis.interpretation import interpret_randles, cell_constant_parallel_plate
-from analysis.features import extract_features 
+from analysis.interpretation import characteristic_frequency, interpret_randles, cell_constant_parallel_plate, compare_fc_fapex
+from analysis.features import extract_features
+from export.eis_report import build_eis_report_blocks
+from export.report_export import render_pdf, save_report, figure_to_png
+from export.report_docx import render_docx, save_docx 
+
+# Report formats offered in the export list: label -> MIME type of the download
+REPORT_FORMATS = {
+    "PDF": "application/pdf",
+    "Word (.docx)": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
 
 # ---------------------------------------------------------
 # Streamlit page config
@@ -52,17 +61,20 @@ if model_name == "Resistor (R)":
     R_guess = st.sidebar.number_input("R (Ω)", value=100.0, min_value=0.0)
     initial_params = [R_guess]
     model_func = Z_resistor(R_guess)
+    param_labels = [("R", "Ω")]
 
 elif model_name == "Capacitor (C)":
     C_guess = st.sidebar.number_input("C (F)", value=1e-6, min_value=0.0, format="%.2e")
     initial_params = [C_guess]
     model_func = Z_capacitor(C_guess)
+    param_labels = [("C", "F")]
 
 elif model_name == "Series RC (R + 1/(jωC))":
     R_guess = st.sidebar.number_input("R (Ω)", value=100.0, min_value=0.0)
     C_guess = st.sidebar.number_input("C (F)", value=1e-6, min_value=0.0, format="%.2e")
     initial_params = [R_guess, C_guess]
     model_func = Z_rc_series(R_guess, C_guess)
+    param_labels = [("R", "Ω"), ("C", "F")]
     
 else:
     RS_guess = st.sidebar.number_input("$R_S (Ω)$", value=10.0, min_value=0.0)
@@ -70,6 +82,7 @@ else:
     Cdl_guess = st.sidebar.number_input("$C_{dl} (F)$", value=1e-6, min_value=0.0, format="%.2e")
     initial_params = [RS_guess, Rct_guess, Cdl_guess]
     model_func = Z_randles(RS_guess, Rct_guess, Cdl_guess)
+    param_labels = [("R_s", "Ω"), ("R_{ct}", "Ω"), ("C_{dl}", "F")]
 
 # ---------------------------------------------------------
 # Sidebar: inputs for the electrochemical interpretation
@@ -128,6 +141,9 @@ if uploaded_file is not None:
     # ---------------------------------------------------------
     # Show raw Nyquist & Bode plots
     # ---------------------------------------------------------
+    # Every figure shown below is also stored here (as PNG bytes) for the PDF report
+    report_figures = []
+
     col1, col2 = st.columns(2)
 
     with col1:
@@ -172,6 +188,11 @@ if uploaded_file is not None:
         ax_nyq.grid(True)
         st.pyplot(fig_nyq)
 
+        nyq_caption = "Nyquist plot (data)"
+        if is_img_axis and scale_factor != 1:
+            nyq_caption += f" - imaginary axis divided by {scale_factor}"
+        report_figures.append((nyq_caption, figure_to_png(fig_nyq)))
+
     with col2:
         st.subheader("Bode plot (data)")
         mag = np.abs(Z_data)
@@ -188,6 +209,7 @@ if uploaded_file is not None:
         ax_bode[1].grid(True)
 
         st.pyplot(fig_bode)
+        report_figures.append(("Bode plot (data)", figure_to_png(fig_bode)))
     
     if df_proc.isna().any().any() or not np.isfinite(df_proc.values).all():
       st.error("Fitting failed: your data contains NaN or infinite values. "
@@ -205,6 +227,8 @@ if uploaded_file is not None:
     f_feat = df_feat["frequency"].to_numpy(dtype=float)
     Z_feat = (df_feat["real"].to_numpy(dtype=float)
               + 1j * df_feat["imag"].to_numpy(dtype=float))
+    
+    feat = None
 
     try:
         feat = extract_features(f_feat, Z_feat)
@@ -223,11 +247,11 @@ if uploaded_file is not None:
 
         # Tell the user when a feature should not be trusted
         if not feat.R_high_reliable:
-            st.warning("High-frequency end does not reach the real axis: $R_high$ is only an upper bound for $R_s$.")
+            st.warning("High-frequency end does not reach the real axis: $R_{high}$ is only an upper bound for $R_s$.")
         if not feat.R_low_reliable:
-            st.warning("No low-frequency plateau on the real axis: $R_low$ is not an $R_s + R_ct$ estimate.")
+            st.warning("No low-frequency plateau on the real axis: $R_{low}$ is not an $R_s + R_{ct}$ estimate.")
         if not feat.apex_resolved:
-            st.warning("The maximum of $−Z''$ is at the edge of the measured range: $f_apex$ is not resolved.")
+            st.warning("The maximum of $−Z''$ is at the edge of the measured range: $f_{apex}$ is not resolved.")
 
     except ValueError as e:
         # e.g. a pure resistor has Z'' = 0 everywhere, so there is nothing to extract
@@ -243,6 +267,7 @@ if uploaded_file is not None:
     # Run fitting only when button is pressed
     # ---------------------------------------------------------
     if fit_button:
+        st.session_state.report_files = {}   # a new fit makes previous reports stale
         try:
             popt, pcov = fit_model(frequencies, Z_data, model_func, initial_params)
             Z_fit = model_func(frequencies, *popt)
@@ -283,6 +308,12 @@ if uploaded_file is not None:
         st.markdown(f"- **RMSE (complex):** `{rmse_val:.4g} Ω`")
         st.markdown(f"- **χ² (σ=1):** `{chi2_val:.4g}`")
 
+        # Defaults for the report; the Randles block below fills them in.
+        # The report simply skips what is empty.
+        results = []
+        check = None
+        report_inputs = None
+
         # -----------------------------------------------------
         # Electrochemical interpretation (Randles model only)
         # -----------------------------------------------------
@@ -313,10 +344,21 @@ if uploaded_file is not None:
                 st.error(f"Interpretation failed: {e}")
                 results = []
 
+            # User-provided values that the interpretation depends on (for the report)
+            report_inputs = {"Temperature": f"{temperature_C:g} °C"}
+            if electrode_area_cm2:
+                report_inputs["Electrode area"] = f"{electrode_area_cm2:g} cm²"
+            if n_electrons:
+                report_inputs["Number of electrons n"] = int(n_electrons)
+            if cell_constant is not None:
+                report_inputs["Electrode spacing L"] = f"{cell_length_cm:g} cm"
+                report_inputs["Electrolyte cross-section"] = f"{cell_area_cm2:g} cm²"
+
             for r in results:
                 st.metric(r.name, f"{r.value:.4g} {r.unit}")
                 with st.expander(f"Formula and assumptions: {r.name}"):
-                    st.markdown(f"**Formula:** `{r.formula}`")
+                    st.markdown(f"**Formula:**")
+                    st.latex(r.formula)
                     st.markdown("**Assumptions**")
                     for a in r.assumptions:
                         st.markdown(f"- {a}")
@@ -324,6 +366,42 @@ if uploaded_file is not None:
                         st.markdown("**Notes**")
                         for note in r.notes:
                             st.markdown(f"- {note}")
+            
+            # -------------------------------------------------
+            # Cross-check: fitted f_c vs measured f_apex
+            # -------------------------------------------------
+            st.markdown("**Consistency check: fit vs data**")
+
+            if feat is None or not feat.apex_resolved:
+                st.info(
+                    "No reliable $f_{apex}$ was measured (apex missing or at the "
+                    "edge of the frequency range), so the fit cannot be "
+                    "cross-checked against the data."
+                )
+            else:
+                f_c_fit = characteristic_frequency(Rct_fit, Cdl_fit)
+                check = compare_fc_fapex(f_c_fit, feat.f_apex)
+
+                k1, k2, k3 = st.columns(3)
+                k1.metric("$f_c$ (fit)", f"{check.f_c:.4g} Hz")
+                k2.metric("$f_{apex}$ (data)", f"{check.f_apex:.4g} Hz")
+                k3.metric("Difference", f"{100 * check.rel_diff:.1f} %")
+
+                if check.consistent:
+                    st.success(
+                        "The fit and the data agree on the time constant. "
+                        "This supports the single-semicircle model, but does not "
+                        "prove it."
+                    )
+                else:
+                    st.warning(
+                        "The fitted $f_c$ and the measured $f_{apex}$ disagree. "
+                        "Possible reasons: a depressed semicircle (CPE instead of "
+                        "an ideal capacitor), overlapping time constants, a "
+                        "diffusion (Warburg) tail, a poor initial guess or fit, or "
+                        "coarse frequency spacing. Treat $\\tau$, $j_0$ and "
+                        "$C_{dl}/A$ with caution."
+                    )
 
             # Tell the user what is missing instead of silently hiding it
             if not electrode_area_cm2:
@@ -350,6 +428,7 @@ if uploaded_file is not None:
         ax_nyq_fit.grid(True)
         ax_nyq_fit.legend()
         st.pyplot(fig_nyq_fit)
+        report_figures.append(("Nyquist: data vs fitted model", figure_to_png(fig_nyq_fit)))
 
         # Bode comparison
         st.subheader("Bode: data vs fitted model")
@@ -372,6 +451,64 @@ if uploaded_file is not None:
         ax_bode_fit[1].grid(True)
 
         st.pyplot(fig_bode_fit)
+        report_figures.append(("Bode: data vs fitted model", figure_to_png(fig_bode_fit)))
+
+        # -----------------------------------------------------
+        # Export the whole analysis as a PDF report
+        # -----------------------------------------------------
+        st.subheader("Export report")
+        st.caption(
+            "PDF and Word report with the fit parameters, the measured features, "
+            "the interpretation (formulas rendered, LaTeX source below each) and "
+            "the figures shown above."
+        )
+
+        # Format list: the user picks ONE format, and only that file is built.
+        export_format = st.selectbox("Report format", list(REPORT_FORMATS))
+
+        if st.button(f"Generate {export_format} report"):
+            try:
+                # 1) what the report says (independent of the file format)
+                blocks = build_eis_report_blocks(
+                    model_name=model_name,
+                    popt=popt,
+                    rmse=rmse_val,
+                    chi2=chi2_val,
+                    param_labels=param_labels,
+                    feat=feat,
+                    results=results,
+                    inputs=report_inputs,
+                    check=check,
+                    figures=report_figures,        # list of (caption, PNG bytes)
+                    data_name=uploaded_file.name,
+                )
+                # 2) how it is drawn: only the chosen format is created
+                base_name = f"{Path(uploaded_file.name).stem}_{model_name}"
+                if export_format == "PDF":
+                    path = save_report(render_pdf(blocks), base_name)
+                else:
+                    path = save_docx(render_docx(blocks), base_name)
+
+                # one entry per format, so switching the list back and forth
+                # does not lose a report that was already generated
+                if "report_files" not in st.session_state:
+                    st.session_state.report_files = {}
+                st.session_state.report_files[export_format] = path
+            except Exception as e:
+                # e.g. a missing DejaVu font in fonts/, or python-docx not installed
+                st.error(f"Report export failed: {e}")
+
+        # Paths live in session_state so the download button survives the rerun
+        # that Streamlit triggers when it is clicked.
+        path = st.session_state.get("report_files", {}).get(export_format)
+        if path:
+            with open(path, "rb") as fh:
+                st.download_button(
+                    f"Download {export_format}",
+                    fh.read(),
+                    file_name=Path(path).name,
+                    mime=REPORT_FORMATS[export_format],
+                )
 
 else:
     st.info("Upload a CSV file in the sidebar to begin.")

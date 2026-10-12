@@ -94,7 +94,7 @@ class InterpretedResult:
 
 # Assumptions shared by everything that uses a Randles-type fit.
 _RANDLES_ASSUMPTION = (
-    "The fitted circuit is Rs + (Rct || Cdl): one semicircle, and Cdl is "
+    "The fitted circuit is $R_s + (R_{ct} \\parallel C_{dl})$: one semicircle, and $C_{dl}$ is "
     "an ideal capacitor (no CPE / non-ideal behaviour)."
 )
 
@@ -120,9 +120,9 @@ def interpret_randles(Rs: float, Rct: float, Cdl: float,
     # ---- 1. Time constant and characteristic frequency ----------------
     tau = time_constant(Rct, Cdl)
     results.append(InterpretedResult(
-        name="Time constant tau",
+        name="Time constant $\\tau$",
         value=tau, unit="s",
-        formula="$\tau$ $= R_{ct} * C_{dl}$",
+        formula=r"\tau = R_{ct} \, C_{dl}",
         assumptions=[_RANDLES_ASSUMPTION],
         notes=["Describes how fast the interface charges/discharges. "
                "It is a property of the fit, not yet a chemical statement."],
@@ -131,10 +131,10 @@ def interpret_randles(Rs: float, Rct: float, Cdl: float,
     results.append(InterpretedResult(
         name="Characteristic frequency $f_c$",
         value=1.0 / (2 * np.pi * tau), unit="Hz",
-        formula="$f_c$ $= 1 / (2 \pi \tau)$",
+        formula=r"f_c = \frac{1}{2 \pi \tau}",
         assumptions=[_RANDLES_ASSUMPTION],
         notes=["Should match the apex frequency measured directly from the "
-               "Nyquist plot (f_apex); a large mismatch means the "
+               "Nyquist plot $(f_{apex})$; a large mismatch means the "
                "single-semicircle model does not describe the data well."],
     ))
 
@@ -148,7 +148,7 @@ def interpret_randles(Rs: float, Rct: float, Cdl: float,
         # hint, not a proof, that something is off.
         if c_uf < 5 or c_uf > 100:
             notes.append(
-                f"{c_uf:.3g} uF/cm^2 is outside the usual ~5-100 uF/cm^2 "
+                f"{c_uf:.3g} $\\mu F/cm^2$ is outside the usual ~5-100 $\\mu F/cm^2$ "
                 "range for flat electrodes in aqueous electrolyte. Possible "
                 "reasons: real area differs from the area you entered "
                 "(roughness, porosity), a surface film or functionalised "
@@ -158,10 +158,10 @@ def interpret_randles(Rs: float, Rct: float, Cdl: float,
         results.append(InterpretedResult(
             name="Specific double-layer capacitance",
             value=c_spec, unit="$F/cm^2$",
-            formula="$C_{spec} = C_{dl} / A$",
+            formula=r"C_{spec} = \frac{C_{dl}}{A}",
             assumptions=[
                 _RANDLES_ASSUMPTION,
-                "A is the true electroactive area, not just the geometric area.",
+                "$A$ is the true electroactive area, not just the geometric area.",
                 "The fitted capacitance is really the double layer (not "
                 "adsorption pseudocapacitance or a coating).",
             ],
@@ -174,22 +174,22 @@ def interpret_randles(Rs: float, Rct: float, Cdl: float,
         results.append(InterpretedResult(
             name="Exchange current density $j_0$",
             value=j0, unit="$A/cm^2$",
-            formula="$j_0$ $= R T / (n F _{ct} A)$",
+            formula=r"j_0 = \frac{R\,T}{n\,F\,R_{ct}\,A}",
             assumptions=[
                 _RANDLES_ASSUMPTION,
                 "Measured at equilibrium (open-circuit) with both the "
                 "oxidised and reduced species present, small AC amplitude "
                 "(linearised Butler-Volmer).",
-                "Rct is purely the charge-transfer resistance: no diffusion "
+                "$R_{ct}$ is purely the charge-transfer resistance: no diffusion "
                 "(Warburg) or film resistance mixed into it.",
                 "Single, simple electron-transfer reaction; n is the number "
                 "of electrons of that reaction (ambiguous for multi-step "
                 "mechanisms).",
-                "A is the true electroactive area.",
-                f"T = {T_kelvin:.2f} K.",
+                "$A$ is the true electroactive area.",
+                f"$T = {T_kelvin:.2f}$ K.",
             ],
-            notes=["If Rct also contains other resistive contributions, "
-                   "j0 is underestimated."],
+            notes=["If $R_{ct}$ also contains other resistive contributions, "
+                   "$j_0$ is underestimated."],
         ))
 
     # ---- 4. Electrolyte conductivity ----------------------------------
@@ -198,17 +198,42 @@ def interpret_randles(Rs: float, Rct: float, Cdl: float,
         results.append(InterpretedResult(
             name="Electrolyte conductivity",
             value=kappa, unit="$S/cm$",
-            formula="$\kappa$ $= K / Rs,  K = L / A$ (cell constant)",
+            formula=r"\kappa = \frac{K}{R_s}, \quad K = \frac{L}{A}",
             assumptions=[
-                "Rs is entirely electrolyte resistance (wires, contacts and "
+                "$R_s$ is entirely electrolyte resistance (wires, contacts and "
                 "reference-electrode junction add to it).",
                 "Uniform current distribution between electrodes, so that "
-                "the cell constant K = L/A is valid.",
-                "Rs is read at high frequency, where the cell is purely "
+                "the cell constant $K$ = $L/A$ is valid.",
+                "$R_s$ is read at high frequency, where the cell is purely "
                 "resistive.",
             ],
-            notes=["1 S/cm = 1000 mS/cm. Compare to a calibrated standard "
+            notes=["$1 S/cm = 1000 mS/cm$. Compare to a calibrated standard "
                    "solution to validate the cell constant."],
         ))
 
     return results
+
+# ---------------------------------------------------------------------
+# Part C: consistency check between the fit and the raw data
+# ---------------------------------------------------------------------
+
+@dataclass
+class ConsistencyCheck:
+    """Result of comparing the fitted f_c with the measured f_apex."""
+    f_c: float          # from the fit: 1 / (2 pi Rct Cdl)   [Hz]
+    f_apex: float       # from the data: peak of -Z''        [Hz]
+    rel_diff: float     # |f_c - f_apex| / f_apex  (0.1 = 10 %)
+    consistent: bool    # True if rel_diff <= tolerance
+
+
+def compare_fc_fapex(f_c: float, f_apex: float,
+                     tolerance: float = 0.25) -> ConsistencyCheck:
+    """
+    Compare the fitted characteristic frequency with the measured apex.
+
+    For an ideal Randles circuit f_apex = f_c exactly. The tolerance
+    absorbs the fact that f_apex is read from discrete data points.
+    """
+    _check_positive(f_c=f_c, f_apex=f_apex)
+    rel_diff = abs(f_c - f_apex) / f_apex
+    return ConsistencyCheck(f_c, f_apex, rel_diff, rel_diff <= tolerance)

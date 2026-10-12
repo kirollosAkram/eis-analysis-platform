@@ -5,3 +5,5 @@ scipy
 streamlit
 plotly
 impedance
+fpdf2
+python-docx
