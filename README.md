@@ -129,9 +129,9 @@ Each model is built as `Z(f, *parameters)` returning a complex vector: resistor,
 
 SciPy cannot directly fit complex-valued functions, so the real and imaginary parts are **concatenated into a single real vector**:
 
-$$
-\mathbf{y} = \begin{bmatrix} \operatorname{Re}(Z) \\ \operatorname{Im}(Z) \end{bmatrix}
-$$
+```math
+\mathbf{y} = \begin{bmatrix} \mathrm{Re}(Z) \\ \mathrm{Im}(Z) \end{bmatrix}
+```
 
 The fit uses `scipy.optimize.curve_fit` with two design choices motivated by the physics of the parameters:
 
