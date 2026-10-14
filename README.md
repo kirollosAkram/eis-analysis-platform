@@ -1,11 +1,22 @@
 # EIS Data Analysis Platform
 
-**Electrochemical Impedance Spectroscopy: simulation, equivalent-circuit modelling, parameter fitting and electrochemical interpretation.**
+**Electrochemical Impedance Spectroscopy: simulation, equivalent-circuit modelling, parameter fitting, electrochemical interpretation and report export.**
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![SciPy](https://img.shields.io/badge/Optimisation-SciPy-green)
 ![Streamlit](https://img.shields.io/badge/Interface-Streamlit-red)
+![Export](https://img.shields.io/badge/Export-PDF%20%7C%20Word-purple)
 ![Status](https://img.shields.io/badge/Status-in%20development-orange)
+
+---
+
+## Abstract
+
+Electrochemical Impedance Spectroscopy (EIS) measures how an electrochemical system responds to a small sinusoidal perturbation over a wide range of frequencies. The resulting spectrum is usually interpreted by fitting an **equivalent circuit** (for example a simplified Randles circuit), which gives **electrical parameters** ($R_s$, $R_{ct}$, $C_{dl}$). These numbers are not chemical information on their own: turning them into electrochemical quantities (time constant, specific capacitance, exchange current density, conductivity) requires explicit assumptions about the system.
+
+This project is a complete, reproducible analysis pipeline that goes from a raw impedance CSV file to a documented interpretation. It cleans the data, plots Nyquist and Bode diagrams, extracts model-free features, fits an equivalent circuit with SciPy, measures the fit quality and derives electrochemical quantities, **each one delivered with its formula and the assumptions under which it is valid**. Everything is available through an interactive Streamlit application, and the whole analysis can be **exported as a PDF or Word report**.
+
+The central idea of the project is a strict separation of three levels: what is **measured**, what is **fitted**, and what is **interpreted**.
 
 ---
 
@@ -21,8 +32,7 @@
 8. [Limitations and assumptions](#8-limitations-and-assumptions)
 9. [Skills developed](#9-skills-developed)
 10. [Future work](#10-future-work)
-11. [References](#11-references)
-12. [Author and license](#12-author-and-license)
+11. [Author and license](#11-author-and-license)
 
 ---
 
@@ -60,7 +70,7 @@ The simplified Randles circuit, $R_s + (R_{ct} \parallel C_{dl})$, is the centra
 
 ### 1.3 Problem statement
 
-An equivalent-circuit fit yields **electrical parameters** ($R_s$, $R_{ct}$, $C_{dl}$). These values are not, in themselves, chemical information. Going from them to electrochemical quantities (exchange current density, specific capacitance, conductivity) requires **explicit assumptions** about the system under study. This project aims to make that distinction visible in both the code and the interface.
+An equivalent-circuit fit yields **electrical parameters** ($R_s$, $R_{ct}$, $C_{dl}$). These values are not, in themselves, chemical information. Going from them to electrochemical quantities (exchange current density, specific capacitance, conductivity) requires **explicit assumptions** about the system under study. This project aims to make that distinction visible in both the code and the interface, **and in the exported report**.
 
 ---
 
@@ -77,6 +87,7 @@ An equivalent-circuit fit yields **electrical parameters** ($R_s$, $R_{ct}$, $C_
 5. **Fit** an equivalent circuit by non-linear least squares and **quantify fit quality** (RMSE, MAE, $\chi^2$).
 6. **Interpret** the fitted parameters as derived electrochemical quantities, each accompanied by its formula, its validity assumptions and data-dependent remarks.
 7. **Expose everything** through an interactive application.
+8. **Export** the complete analysis (parameters, features, interpretation, figures) as a self-contained **PDF or Word report**.
 
 ---
 
@@ -105,6 +116,11 @@ The processing pipeline is organised into distinct levels, on purpose.
  ┌─────────────────────┐
  │ 4. Electrochemical  │  derived quantities, each with
  │    interpretation   │  formula + assumptions + remarks
+ └─────────┬───────────┘
+           ▼
+ ┌─────────────────────┐
+ │ 5. Report export    │  PDF or Word document with the
+ │                     │  three levels + figures
  └─────────────────────┘
 ```
 
@@ -166,11 +182,47 @@ Each derived quantity is returned as an `InterpretedResult` object holding its *
 | Exchange current density | $j_0 = \dfrac{RT}{nF\,R_{ct}\,A}$ | area, $n$, $T$ |
 | Electrolyte conductivity | $\kappa = \dfrac{K}{R_s}, \; K = \dfrac{L}{A}$ | cell geometry |
 
-Comparing $f_c$ (from the fit) with $f_{apex}$ (measured) provides an **internal consistency check**: a large mismatch indicates that the single-semicircle model describes the data poorly.
+Comparing $f_c$ (from the fit) with $f_{apex}$ (measured) provides an **internal consistency check** (`compare_fc_fapex`): a large mismatch indicates that the single-semicircle model describes the data poorly.
 
 ### 3.8 Interactive application (`app/streamlit_app.py`)
 
-A Streamlit interface that ties everything together: CSV upload, model selection, initial guesses, Nyquist/Bode plots (data, then data vs fit), model-free features, fit results, and an interpretation panel with expandable formulas and assumptions.
+A Streamlit interface that ties everything together: CSV upload, model selection, initial guesses, Nyquist/Bode plots (data, then data vs fit), model-free features, fit results, an interpretation panel with expandable formulas and assumptions, and the report export panel.
+
+### 3.9 Report export (`export/`)
+
+The analysis can be exported as a **PDF** or a **Word (.docx)** report. The user chooses one format and only that file is built.
+
+The key design decision is to **write the report content only once**. The export is split into three layers:
+
+```
+ Analysis results                    eis_report.py                 report_export.py  → PDF
+ (fit, features,   ───────►  list of "blocks" (WHAT)  ───────► interpretation, figures)
+                                     │                           report_docx.py    → Word
+                                     └── latex_text.py (math helpers shared by both renderers)
+```
+
+| File | Role |
+|---|---|
+| `eis_report.py` | Decides **what** goes in the report. It draws nothing: it returns a list of *blocks* (plain tuples such as `("h2", text)`, `("kv", label, value)`, `("formula", latex)`, `("figures", [...])`, `("group", [...])`). All numbers come from the existing modules; nothing is recomputed. |
+| `report_export.py` | PDF renderer based on `fpdf2`: an A4 page with a footer, semantic write helpers, formulas as images, figures side by side, and `unbreakable()` groups so that a result is never split across two pages. |
+| `report_docx.py` | Word renderer based on `python-docx`: it draws **the same blocks**, so the PDF and the Word file always have the same content. Inline math uses real Word subscript/superscript runs (editable text). |
+| `latex_text.py` | Math helpers shared by both renderers (see below). |
+
+**Report content.** The report mirrors the three levels used everywhere in the project:
+
+1. **Equivalent-circuit fit**: fitted parameters, RMSE and $\chi^2$ (electrical level).
+2. **Measured EIS features**: $R_{high}$, $R_{low}$, $R_{low}-R_{high}$, $f_{apex}$, with the same *reliability warnings* the application shows (the report never hides them).
+3. **Electrochemical interpretation**: inputs provided by the user (area, temperature, $n$, geometry), assumptions shared by several results written once and numbered **A1, A2…** (each result then only points to them), then each derived quantity with its value, formula, additional assumptions and notes, and finally the fit-vs-data consistency check.
+4. **Figures**: every plot shown in the application (Nyquist and Bode of the data, then data vs fit), two per row.
+
+Optional sections are skipped when their inputs are missing (for example, no interpretation for a non-Randles model).
+
+**How formulas are handled.** PDF and Word libraries cannot read LaTeX, so two techniques are used:
+
+- **Display formulas** (the large centred ones) are rendered to a transparent PNG with Matplotlib's math engine (`mathtext`, Computer Modern font). The **LaTeX source** is printed in small grey text underneath, so it can be copied. In Word it can be turned into a native equation: press `Alt` + `=`, paste the LaTeX source, then press `Space`.
+- **Inline math** inside sentences (`$\tau$`, `$R_{ct}$`, `$F/cm^2$`) is converted to plain text pieces tagged *normal / subscript / superscript*, which each renderer writes with its own sub/superscript feature. Only the LaTeX subset used by this project is supported (Greek letters, subscripts, superscripts, `\frac`, spacing commands, a few operators); an unknown command is shown as its bare name instead of crashing.
+
+**Files produced.** Reports are saved in `results/reports/` as `<data-file>_<model>_<timestamp>.pdf` or `.docx`. In the application, the file paths are stored in `st.session_state`, so the download button survives the rerun triggered by Streamlit, and a report already generated is not lost when switching format. Running a new fit clears the reports, since they would be out of date.
 
 ---
 
@@ -180,11 +232,15 @@ A Streamlit interface that ties everything together: CSV upload, model selection
 eis-analysis-platform/
 ├── README.md
 ├── requirements.txt
+├── fonts/                        # DejaVu fonts required by the PDF export
+│   ├── DejaVuSansCondensed.ttf
+│   ├── DejaVuSansCondensed-Bold.ttf
+│   └── DejaVuSansMono.ttf
 ├── data/
-│   ├── raw/                  # raw measurements
-│   ├── processed/            # cleaned data
-│   └── simulated/            # synthetic validation data
-├── docs/                     # methodology, fundamentals, equivalent circuits
+│   ├── raw/                      # raw measurements
+│   ├── processed/                # cleaned data
+│   └── simulated/                # synthetic validation data
+├── docs/                         # methodology, fundamentals, equivalent circuits
 ├── notebooks/
 │   ├── 01_eis_fundamentals.ipynb
 │   ├── 02_resistor_simulation.ipynb
@@ -194,14 +250,15 @@ eis-analysis-platform/
 │   ├── 06_visualisation.ipynb
 │   └── 07_circuit_fitting.ipynb
 ├── src/
-│   ├── simulation/           # resistor, capacitor, rc_circuit, randles
-│   ├── models/               # equivalent_circuits.py
-│   ├── processing/           # preprocessing.py
-│   ├── visualization/        # nyquist.py, bode.py
-│   └── analysis/             # fitting, features, interpretation, metrics
+│   ├── simulation/               # resistor, capacitor, rc_circuit, randles
+│   ├── models/                   # equivalent_circuits.py
+│   ├── processing/               # preprocessing.py
+│   ├── visualization/            # nyquist.py, bode.py
+│   ├── analysis/                 # fitting, features, interpretation, metrics
+│   └── export/                   # eis_report, report_export, report_docx, latex_text
 ├── results/
 │   ├── figures/
-│   └── reports/
+│   └── reports/                  # exported PDF / Word reports
 └── app/
     └── streamlit_app.py
 ```
@@ -221,7 +278,17 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Main dependencies: `numpy`, `pandas`, `scipy`, `matplotlib`, `streamlit`.
+Main dependencies:
+
+| Purpose | Packages |
+|---|---|
+| Analysis and plots | `numpy`, `pandas`, `scipy`, `matplotlib` |
+| Interface | `streamlit` |
+| PDF export | `fpdf2` (version 2.8 or later, for sub/superscript support) |
+| Word export | `python-docx` |
+| Formula images | `Pillow` (installed with Matplotlib) |
+
+The PDF export also needs the three DejaVu font files listed in [section 4](#4-repository-structure) in the `fonts/` folder at the project root. If a font or a package is missing, the application shows a clear *"Report export failed"* message instead of crashing.
 
 **Run the application:**
 
@@ -236,6 +303,7 @@ streamlit run app/streamlit_app.py
 3. Choose an equivalent circuit and enter consistent initial values (guided by $R_{high}$, $R_{low}-R_{high}$ and $f_{apex}$).
 4. Run the fit, assess RMSE and $\chi^2$, and compare data with the model.
 5. For the Randles model, enter the area, temperature, number of electrons and optionally the cell geometry to obtain the electrochemical quantities.
+6. In the **Export report** panel, choose **PDF** or **Word (.docx)**, click *Generate*, then *Download*.
 
 ---
 
@@ -270,7 +338,8 @@ Nyquist plots show $Z'$ against $-Z''$, following the usual convention.
 - fitted parameters $(R_s, R_{ct}, C_{dl})$ with their covariance matrix;
 - quality metrics (RMSE, $\chi^2$);
 - derived quantities ($\tau$, $f_c$, $C_{spec}$, $j_0$, $\kappa$) when the required inputs are provided;
-- for each of these quantities, the explicit list of assumptions under which it is valid.
+- for each of these quantities, the explicit list of assumptions under which it is valid;
+- a **PDF or Word report** gathering all of the above, with rendered formulas and the figures.
 
 **Methodological outcome.** A concrete demonstration of the difference between a *fitted* parameter, a *measured* quantity and an *interpreted* quantity, and of how uncertainty and assumptions propagate from one level to the next.
 
@@ -288,6 +357,7 @@ These limitations are deliberate and documented in the code; they are part of th
 - **Plausibility range for $C_{spec}$.** The 5–100 µF/cm² warning is a rule of thumb for flat electrodes in aqueous media: a hint, not a proof.
 - **Relative $\chi^2$.** Without an estimate of $\sigma$ or weighting, $\chi^2$ is not a hypothesis test.
 - **Data consistency validation.** No Kramers-Kronig-type check is implemented yet.
+- **Report formulas.** Only the LaTeX subset used by the project is supported in the export. Display formulas are inserted as images (not native Word equations), and the PDF export depends on the DejaVu fonts being present in `fonts/`.
 
 ---
 
@@ -306,9 +376,10 @@ These limitations are deliberate and documented in the code; they are part of th
 
 - **Scientific Python**: NumPy (complex vectorised computation), pandas (data cleaning), SciPy (`curve_fit`, bounds, TRF/LM algorithms), Matplotlib.
 - **Non-linear optimisation**: reformulating a complex-valued problem as a real one, parameter scaling, positivity constraints.
-- **Software engineering**: modular architecture (`simulation / models / processing / analysis / visualization`), uniform function signatures, `dataclasses`, separation of concerns.
+- **Software engineering**: modular architecture (`simulation / models / processing / analysis / visualization / export`), uniform function signatures, `dataclasses`, separation of concerns.
 - **Application development**: Streamlit, session-state management, detection of stale results.
-- **Reproducibility**: pedagogical notebooks, simulated reference data, assumptions explicitly attached to each result.
+- **Document generation**: separating content from rendering (one block list, two renderers), PDF generation with `fpdf2`, Word generation with `python-docx`, rendering LaTeX formulas with Matplotlib `mathtext`, converting inline LaTeX to sub/superscript text.
+- **Reproducibility**: pedagogical notebooks, simulated reference data, assumptions explicitly attached to each result and carried into the exported report.
 
 ---
 
@@ -322,21 +393,12 @@ These limitations are deliberate and documented in the code; they are part of th
 - Automatic initialisation of parameters from model-free features.
 - Automated comparison of several circuits (AIC/BIC information criteria).
 - Unit tests on simulated data (recover the original parameters).
+- Additional export formats (for example Markdown or HTML) by writing a new renderer for the existing block list.
 - Applied example on a real device (sensor, biosensor, modified electrode).
 
 ---
 
-## 11. References
-
-- Lasia, A. *Electrochemical Impedance Spectroscopy and its Applications*. Springer, 2014.
-- Orazem, M. E., Tribollet, B. *Electrochemical Impedance Spectroscopy*. Wiley, 2nd ed., 2017.
-- Bard, A. J., Faulkner, L. R., White, H. S. *Electrochemical Methods: Fundamentals and Applications*. Wiley, 3rd ed., 2022.
-- Barsoukov, E., Macdonald, J. R. (eds.). *Impedance Spectroscopy: Theory, Experiment, and Applications*. Wiley, 3rd ed., 2018.
-- Virtanen, P. et al. "SciPy 1.0: fundamental algorithms for scientific computing in Python". *Nature Methods*, 17, 261–272, 2020.
-
----
-
-## 12. Author and license
+## 11. Author and license
 
 **Author:** *Kirolos Morcos* · *ENSISA / Electronics, Electrical Energy and Automation (EEA)*
 
