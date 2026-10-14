@@ -250,12 +250,11 @@ eis-analysis-platform/
 │   ├── 06_visualisation.ipynb
 │   └── 07_circuit_fitting.ipynb
 ├── src/
-│   ├── simulation/               # resistor, capacitor, rc_circuit, randles
-│   ├── models/                   # equivalent_circuits.py
-│   ├── processing/               # preprocessing.py
-│   ├── visualization/            # nyquist.py, bode.py
-│   ├── analysis/                 # fitting, features, interpretation, metrics
-│   └── export/                   # eis_report, report_export, report_docx, latex_text
+│   ├── simulation/           # resistor, capacitor, rc_circuit, randles
+│   ├── models/               # equivalent_circuits.py
+│   ├── processing/           # preprocessing.py
+│   ├── visualization/        # nyquist.py, bode.py
+│   └── analysis/             # fitting, features, interpretation, metrics
 ├── results/
 │   ├── figures/
 │   └── reports/                  # exported PDF / Word reports
